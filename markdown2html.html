@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>markdown2html</title>
+    <!-- 第三方核心库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.0/purify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f1f5f9;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 1.5rem;
+            color: #0f172a;
+        }
+
+        /* 自定义容器 */
+        .tool-container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* 头部 */
+        .header {
+            margin-bottom: 1.8rem;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 1.9rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #1e293b, #3b82f6);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+        }
+        .header p {
+            color: #475569;
+            margin-top: 0.4rem;
+            font-size: 0.95rem;
+        }
+
+        /* 双栏网格布局 */
+        .editor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        /* 公共卡片样式 */
+        .card {
+            background: white;
+            border-radius: 1.25rem;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.2s;
+        }
+
+        .card-header {
+            padding: 1rem 1.5rem;
+            background: #fafcff;
+            border-bottom: 1px solid #e9eef3;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .card-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #0f2b3d;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .toolbar-group {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+        button, .file-label {
+            background-color: #f1f5f9;
+            border: none;
+            padding: 0.4rem 0.9rem;
+            border-radius: 2rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #1e293b;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+        }
+        button i, .file-label i {
+            font-style: normal;
+            font-weight: 600;
+        }
+        button.primary {
+            background: #3b82f6;
+            color: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        button.primary:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+        button:hover {
+            background: #e2e8f0;
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        textarea {
+            width: 100%;
+            min-height: 480px;
+            padding: 1.2rem;
+            font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+            line-height: 1.55;
+            border: none;
+            resize: vertical;
+            outline: none;
+            background: #ffffff;
+            color: #0f172a;
+        }
+        .preview-area {
+            background: #ffffff;
+            min-height: 480px;
+            max-height: 550px;
+            overflow-y: auto;
+            padding: 1.2rem 1.5rem;
+        }
+        .html-source-area {
+            border-top: 1px solid #eef2f6;
+            background: #f8fafc;
+        }
+        .html-header {
+            padding: 0.8rem 1.2rem;
+            background: #f9fbfd;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .html-code {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 260px;
+            overflow: auto;
+            margin: 0;
+            border-radius: 0;
+        }
+        .markdown-body {
+            font-size: 0.95rem;
+        }
+        /* 适配移动端 */
+        @media (max-width: 780px) {
+            body {
+                padding: 1rem;
+            }
+            .editor-grid {
+                grid-template-columns: 1fr;
+                gap: 1.2rem;
+            }
+            textarea {
+                min-height: 320px;
+            }
+            .preview-area {
+                min-height: 320px;
+            }
+        }
+        .badge-icon {
+            background: #eef2ff;
+            border-radius: 30px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: #2563eb;
+        }
+        .file-input-hidden {
+            display: none;
+        }
+        .status-msg {
+            font-size: 0.7rem;
+            color: #34a853;
+            margin-left: 0.5rem;
+        }
+        hr {
+            margin: 0;
+        }
+        footer {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.75rem;
+            color: #5b6e8c;
+        }
+
+        /* ---------- 全屏预览样式（白色背景 + 左侧目录导航） ---------- */
+        .fullscreen-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #ffffff;  /* 白色背景 */
+            z-index: 10000;
+            overflow-y: auto;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        .fullscreen-modal.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+        .fullscreen-content {
+            width: 100%;
+            max-width: 1400px;
+            height: auto;
+            min-height: 90vh;
+            background: #ffffff;
+            border-radius: 0px;
+            box-shadow: none;
+            position: relative;
+            display: flex;
+            flex-direction: row;
+            gap: 2rem;
+            margin: 0 auto;
+        }
+        /* 左侧目录导航样式 */
+        .fullscreen-toc {
+            width: 260px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 1rem;
+            align-self: flex-start;
+            max-height: calc(100vh - 2rem);
+            overflow-y: auto;
+            background: #f9fafb;
+            border-radius: 20px;
+            padding: 1.2rem 0.8rem;
+            border: 1px solid #eef2f6;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+        .fullscreen-toc-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #4b5563;
+            margin-bottom: 1rem;
+            padding-left: 0.8rem;
+        }
+        .toc-list {
+            list-style: none;
+            margin: 0;
+            padding-left: 0;
+        }
+        .toc-list ul {
+            list-style: none;
+            margin-left: 1rem;
+            padding-left: 0;
+        }
+        .toc-list li {
+            margin: 0.4rem 0;
+            line-height: 1.4;
+        }
+        .toc-link {
+            display: block;
+            padding: 0.3rem 0.8rem;
+            font-size: 0.85rem;
+            color: #2c3e50;
+            text-decoration: none;
+            border-radius: 12px;
+            transition: all 0.2s;
+            white-space: nowrap;
+            overflow-x: hidden;
+            text-overflow: ellipsis;
+        }
+        .toc-link:hover {
+            background-color: #eef2ff;
+            color: #1e40af;
+        }
+        .toc-link.level-h1 {
+            font-weight: 700;
+            padding-left: 0.6rem;
+            font-size: 0.9rem;
+        }
+        .toc-link.level-h2 {
+            padding-left: 1.2rem;
+        }
+        .toc-link.level-h3 {
+            padding-left: 1.8rem;
+            font-size: 0.8rem;
+            color: #4b5563;
+        }
+        .toc-link.level-h4 {
+            padding-left: 2.4rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        .toc-link.level-h5 {
+            padding-left: 3rem;
+            font-size: 0.7rem;
+            color: #9ca3af;
+        }
+        .toc-link.level-h6 {
+            padding-left: 3.6rem;
+            font-size: 0.7rem;
+            color: #9ca3af;
+        }
+        .toc-link.active {
+            background-color: #e0e7ff;
+            color: #1e3a8a;
+            font-weight: 500;
+            border-left: 3px solid #3b82f6;
+        }
+        /* 折叠按钮 */
+        .toc-item-row {
+            display: flex;
+            align-items: center;
+        }
+        .toc-item-row .toc-link {
+            flex: 1;
+            min-width: 0;
+        }
+        .toc-toggle {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            color: #9ca3af;
+            font-size: 0.65rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: color 0.15s, background 0.15s;
+            transform: translateY(0);
+        }
+        .toc-toggle:hover {
+            color: #3b82f6;
+            background: #eef2ff;
+            transform: translateY(0);
+        }
+        .toc-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+        .toc-children {
+            overflow: hidden;
+        }
+        .toc-children.collapsed {
+            display: none;
+        }
+        /* 折叠控制栏 */
+        .toc-controls {
+            display: flex;
+            gap: 0.3rem;
+            margin-bottom: 0.8rem;
+            padding-left: 0.4rem;
+        }
+        .toc-ctrl-btn {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 8px;
+            background: #f1f5f9;
+            border: none;
+            color: #475569;
+            cursor: pointer;
+            transition: background 0.15s;
+            transform: translateY(0);
+            font-family: inherit;
+        }
+        .toc-ctrl-btn:hover {
+            background: #e0e7ff;
+            color: #1e40af;
+            transform: translateY(0);
+        }
+        .toc-ctrl-btn.collapsed-active {
+            background: #3b82f6;
+            color: white;
+        }
+        .toc-ctrl-btn.collapsed-active:hover {
+            background: #2563eb;
+            color: white;
+        }
+        /* 右侧内容区 */
+        .fullscreen-body {
+            flex: 1;
+            background: white;
+            padding: 1.2rem 2rem 3rem;
+            overflow-y: auto;
+            max-height: calc(100vh - 2rem);
+            border-radius: 20px;
+            border: 1px solid #edf2f7;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .fullscreen-header {
+            display: none;  /* 原来的关闭按钮移入右侧工具栏下方，但为了简洁，我们保留原有的关闭方式，但将它移到全屏右上角，同时避免破坏结构 */
+        }
+        /* 自定义关闭条 */
+        .fullscreen-close-bar {
+            position: fixed;
+            top: 1rem;
+            right: 1.5rem;
+            z-index: 10010;
+            background: white;
+            border-radius: 40px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 0.3rem 0.8rem;
+            backdrop-filter: blur(4px);
+        }
+        .fullscreen-close-bar button {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            padding: 0.4rem 1.2rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .fullscreen-close-bar button:hover {
+            background: #dc2626;
+        }
+        @media (max-width: 760px) {
+            .fullscreen-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .fullscreen-toc {
+                width: 100%;
+                position: relative;
+                max-height: 240px;
+                overflow-y: auto;
+                top: 0;
+            }
+            .fullscreen-close-bar {
+                top: 0.5rem;
+                right: 0.8rem;
+            }
+            .fullscreen-body {
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="tool-container">
+    <div class="header">
+        <h1>📝 Markdown ⇄ HTML 转换工坊(author: zaki.wang)</h1>
+        <p>支持文件上传 (.md / .txt) · 直接粘贴 · 实时渲染预览 · 一键导出HTML源码</p>
+    </div>
+
+    <div class="editor-grid">
+        <!-- 左侧：编辑器区块 -->
+        <div class="card">
+            <div class="card-header">
+                <h3>✍️ Markdown 编辑器</h3>
+                <div class="toolbar-group">
+                    <input type="file" id="fileUpload" class="file-input-hidden" accept=".md,.markdown,.txt,.mdx">
+                    <button id="uploadBtn" title="上传markdown文件">📂 上传文件</button>
+                    <button id="clearBtn" title="清空内容">🗑️ 清空</button>
+                    <button id="sampleBtn" title="加载示例">✨ 示例</button>
+                    <button id="convertBtn" class="primary">⚡ 转换预览</button>
+                </div>
+            </div>
+            <textarea id="markdownInput" placeholder="在此处直接键入 Markdown 内容，或粘贴/拖拽文件（手动点击转换预览）&#10;&#10;支持标准 Markdown、代码高亮、表格、GFM等..."></textarea>
+            <div class="card-header" style="border-top: 1px solid #eef2f6; border-bottom: none; justify-content: flex-start;">
+                <span class="badge-icon">提示: 点击「转换预览」同步右侧预览区 & HTML代码</span>
+                <span id="fileStatus" style="font-size:0.7rem; color:#3b82f6;"></span>
+            </div>
+        </div>
+
+        <!-- 右侧：预览 + HTML源码双区域 -->
+        <div class="card" style="display: flex; flex-direction: column;">
+            <div class="card-header">
+                <h3>👁️ 实时渲染预览</h3>
+                <div class="toolbar-group">
+                    <button id="copyHtmlBtn" title="复制HTML代码">📋 复制HTML</button>
+                    <button id="exportHtmlBtn" title="导出完整HTML文件">💾 导出HTML文件</button>
+                    <!-- 全屏预览按钮 -->
+                    <button id="fullscreenPreviewBtn" title="全屏预览渲染的HTML内容（含目录导航）">🖥️ 全屏预览</button>
+                </div>
+            </div>
+            <div class="preview-area markdown-body" id="previewContainer">
+                <div style="color: #94a3b8; text-align: center; padding: 2rem;">✨ 点击「转换预览」或上传文件，渲染效果将展示于此</div>
+            </div>
+            <div class="html-source-area">
+                <div class="html-header">
+                    <span>🔧 生成的 HTML 源代码（纯净片段）</span>
+                    <span style="font-size: 0.7rem;">可直接复制或导出使用</span>
+                </div>
+                <pre id="htmlSourceCode" class="html-code">&lt;!-- 等待转换 --&gt;</pre>
+            </div>
+        </div>
+    </div>
+    <footer>
+        🛡️ 安全过滤 (DOMPurify) | 代码高亮 (highlight.js) | 支持 GFM 表格/链接/任务列表基础语法 | by zaki.wang wzz88888@163.com
+    </footer>
+</div>
+
+<!-- 全屏模态框结构（白色背景 + 左侧导航 + 关闭浮标） -->
+<div id="fullscreenModal" class="fullscreen-modal">
+    <div class="fullscreen-close-bar">
+        <button id="closeFullscreenBtnGlobal">✕ 退出全屏预览</button>
+    </div>
+    <div class="fullscreen-content">
+        <!-- 左侧目录树区域 -->
+        <div class="fullscreen-toc" id="fullscreenToc">
+            <div class="fullscreen-toc-title">📑 文档目录</div>
+            <ul class="toc-list" id="tocList">
+                <li>加载中...</li>
+            </ul>
+        </div>
+        <!-- 右侧内容渲染区 -->
+        <div class="fullscreen-body markdown-body" id="fullscreenBody">
+            <!-- 动态渲染全屏内容 -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- 配置 marked 和 高亮 ----------
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({
+            gfm: true,
+            breaks: true,
+            pedantic: false,
+            highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    try {
+                        return hljs.highlight(code, { language: lang }).value;
+                    } catch (err) {}
+                }
+                return hljs.highlightAuto(code).value;
+            },
+            langPrefix: 'hljs language-',
+        });
+    }
+
+    // DOM 元素
+    const markdownTextarea = document.getElementById('markdownInput');
+    const previewDiv = document.getElementById('previewContainer');
+    const htmlSourcePre = document.getElementById('htmlSourceCode');
+    const convertBtn = document.getElementById('convertBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const sampleBtn = document.getElementById('sampleBtn');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileUploadInput = document.getElementById('fileUpload');
+    const copyHtmlBtn = document.getElementById('copyHtmlBtn');
+    const exportHtmlBtn = document.getElementById('exportHtmlBtn');
+    const fileStatusSpan = document.getElementById('fileStatus');
+
+    // 全屏元素
+    const fullscreenBtn = document.getElementById('fullscreenPreviewBtn');
+    const fullscreenModal = document.getElementById('fullscreenModal');
+    const fullscreenBody = document.getElementById('fullscreenBody');
+    const tocList = document.getElementById('tocList');
+    const closeFullscreenBtn = document.getElementById('closeFullscreenBtnGlobal');
+
+    // ----- 修复：生成合法 CSS 标识符 ID (数字开头自动加前缀) -----
+    function generateId(text) {
+        let rawId = text.toLowerCase().replace(/[^\u4e00-\u9fa5a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'heading';
+        // 如果首字符是数字，则添加前缀 'heading-' 以确保 querySelector 不会报错
+        if (rawId.length > 0 && /^\d/.test(rawId)) {
+            rawId = 'heading-' + rawId;
+        }
+        return rawId;
+    }
+
+    // 构建目录树，并给标题添加id和跳转事件
+    function buildTOCFromContent(contentContainer) {
+        if (!contentContainer) return;
+        // 获取所有标题 h1,h2,h3,h4,h5,h6
+        const headings = contentContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        if (headings.length === 0) {
+            tocList.innerHTML = '<li style="padding:0.5rem; color:#aaa;">无目录结构</li>';
+            return;
+        }
+
+        // 为每个标题补全id
+        headings.forEach((heading) => {
+            if (!heading.id) {
+                let baseId = generateId(heading.innerText);
+                let finalId = baseId;
+                let counter = 1;
+                while (document.getElementById(finalId) && document.getElementById(finalId) !== heading) {
+                    finalId = `${baseId}-${counter++}`;
+                }
+                heading.id = finalId;
+            }
+        });
+
+        // 递归生成树结构
+        const tocItems = [];
+        const stack = [{ level: 0, children: tocItems }];
+        headings.forEach(heading => {
+            const tag = heading.tagName.toLowerCase();
+            let level = 1;
+            if (tag === 'h1') level = 1;
+            else if (tag === 'h2') level = 2;
+            else if (tag === 'h3') level = 3;
+            else if (tag === 'h4') level = 4;
+            else if (tag === 'h5') level = 5;
+            else if (tag === 'h6') level = 6;
+            else return;
+
+            const item = {
+                level,
+                title: heading.innerText,
+                id: heading.id,
+                children: []
+            };
+            while (stack.length > 0 && stack[stack.length - 1].level >= level) {
+                stack.pop();
+            }
+            stack[stack.length - 1].children.push(item);
+            stack.push({ level, children: item.children });
+        });
+
+        // 滚动到目标标题（使用 offsetTop 精确定位，避免跳到下一项）
+        function scrollToHeading(id) {
+            const target = document.getElementById(id);
+            if (!target) return;
+            const scrollContainer = fullscreenBody;
+            scrollContainer.scrollTo({ top: target.offsetTop - 12, behavior: 'smooth' });
+        }
+
+        // 更新目录高亮
+        function setActiveLink(id) {
+            tocList.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+            const link = tocList.querySelector(`.toc-link[data-id="${id}"]`);
+            if (link) link.classList.add('active');
+        }
+
+        // 渲染树状列表（含折叠）
+        function renderToc(children, ul) {
+            children.forEach(child => {
+                const li = document.createElement('li');
+
+                // 行容器（link + 折叠按钮并排）
+                const row = document.createElement('div');
+                row.className = 'toc-item-row';
+
+                const a = document.createElement('a');
+                a.href = `#${child.id}`;
+                a.className = `toc-link level-h${child.level}`;
+                a.textContent = child.title;
+                a.setAttribute('data-id', child.id);
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    scrollToHeading(child.id);
+                    setActiveLink(child.id);
+                });
+                row.appendChild(a);
+
+                let childrenDiv = null;
+                if (child.children.length) {
+                    // 折叠按钮
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'toc-toggle';
+                    toggleBtn.title = '折叠/展开';
+                    toggleBtn.textContent = '▼';
+                    row.appendChild(toggleBtn);
+
+                    childrenDiv = document.createElement('div');
+                    childrenDiv.className = 'toc-children';
+                    const subUl = document.createElement('ul');
+                    renderToc(child.children, subUl);
+                    childrenDiv.appendChild(subUl);
+
+                    toggleBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const collapsed = childrenDiv.classList.toggle('collapsed');
+                        toggleBtn.classList.toggle('collapsed', collapsed);
+                    });
+                }
+
+                li.appendChild(row);
+                if (childrenDiv) li.appendChild(childrenDiv);
+                ul.appendChild(li);
+            });
+        }
+
+        // 控制栏：全部展开 / 全部折叠 + 按级别折叠
+        tocList.innerHTML = '';
+        const controls = document.createElement('div');
+        controls.className = 'toc-controls';
+
+        // 检测最大目录级别（递归遍历整棵树）
+        function getMaxLevel(items) {
+            let max = 0;
+            items.forEach(item => {
+                max = Math.max(max, item.level);
+                if (item.children.length) {
+                    max = Math.max(max, getMaxLevel(item.children));
+                }
+            });
+            return max;
+        }
+        const maxLevel = getMaxLevel(tocItems);
+        console.log('[TOC] 检测到 ' + maxLevel + ' 级目录，共 ' + tocItems.length + ' 个顶级节点');
+        const levelNames = ['', '一级', '二级', '三级', '四级', '五级', '六级'];
+
+        // 按级别折叠/展开 切换按钮（从最大级别开始）
+        const levelState = {}; // levelState[lv] = true 表示已折叠
+        const levelBtns = {}; // levelBtns[lv] = button element
+
+        for (let lv = maxLevel; lv >= 1; lv--) {
+            levelState[lv] = false; // 初始都是展开状态
+        }
+
+        // 辅助函数：获取节点的级别
+        function getNodeLevel(node) {
+            const link = node.querySelector('.toc-link');
+            if (!link) return 0;
+            for (let i = 1; i <= 6; i++) {
+                if (link.classList.contains('level-h' + i)) return i;
+            }
+            return 0;
+        }
+
+        // 辅助函数：获取所有父节点（从根到当前节点）
+        function getParentNodes(childDiv) {
+            const parents = [];
+            let current = childDiv.parentElement;
+            while (current && current !== tocList) {
+                if (current.classList && current.classList.contains('toc-children')) {
+                    parents.push(current);
+                }
+                current = current.parentElement;
+            }
+            return parents;
+        }
+
+        for (let lv = maxLevel; lv >= 1; lv--) {
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'toc-ctrl-btn';
+            levelBtns[lv] = toggleBtn;
+            const levelName = levelNames[lv] || lv + '级';
+
+            function updateBtnText(lvParam) {
+                return function() {
+                    if (levelState[lvParam]) {
+                        toggleBtn.textContent = '展开' + levelName;
+                        toggleBtn.classList.remove('collapsed-active');
+                    } else {
+                        toggleBtn.textContent = '折叠' + levelName;
+                        toggleBtn.classList.add('collapsed-active');
+                    }
+                }
+            }
+            updateBtnText(lv)();
+
+            toggleBtn.title = '点击切换' + levelName + '目录的展开/折叠';
+
+            toggleBtn.addEventListener('click', () => {
+                // 辅助函数：递归检查是否包含指定级别的后代节点
+                function hasDescendantLevel(containerDiv, targetLevel) {
+                    const allLinks = containerDiv.querySelectorAll('.toc-link');
+                    for (let i = 0; i < allLinks.length; i++) {
+                        if (allLinks[i].classList.contains('level-h' + targetLevel)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
+                // 重置所有其他按钮状态
+                for (let otherLv in levelBtns) {
+                    if (String(otherLv) !== String(lv)) {
+                        levelState[otherLv] = false;
+                        levelBtns[otherLv].textContent = '折叠' + (levelNames[otherLv] || otherLv + '级');
+                        levelBtns[otherLv].classList.remove('collapsed-active');
+                    }
+                }
+
+                // 切换当前级别状态
+                levelState[lv] = !levelState[lv];
+                const isCollapsing = levelState[lv];
+
+                if (isCollapsing) {
+                    // 折叠模式：折叠当前级别，展开所有上级，折叠所有下级
+                    tocList.querySelectorAll('.toc-children').forEach(childDiv => {
+                        const parentLi = childDiv.parentElement;
+                        if (!parentLi) return;
+
+                        const parentLevel = getNodeLevel(parentLi);
+                        const hasTargetLevel = hasDescendantLevel(childDiv, lv);
+
+                        if (hasTargetLevel) {
+                            // 这个节点包含目标级别的后代节点
+                            if (parentLevel < lv) {
+                                // 父节点级别小于目标级别，展开父节点
+                                childDiv.classList.remove('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.remove('collapsed');
+                            } else if (parentLevel === lv) {
+                                // 父节点就是目标级别，折叠其子节点
+                                childDiv.classList.add('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.add('collapsed');
+                            }
+                        } else if (parentLevel >= lv) {
+                            // 父节点级别大于等于目标级别，折叠
+                            childDiv.classList.add('collapsed');
+                            const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                            if (btn) btn.classList.add('collapsed');
+                        }
+                    });
+                } else {
+                    // 展开模式：展开当前级别、所有上级和下一级，不深度展开
+                    tocList.querySelectorAll('.toc-children').forEach(childDiv => {
+                        const parentLi = childDiv.parentElement;
+                        if (!parentLi) return;
+
+                        const parentLevel = getNodeLevel(parentLi);
+                        const hasTargetLevel = hasDescendantLevel(childDiv, lv);
+                        const hasNextLevel = hasDescendantLevel(childDiv, lv + 1);
+
+                        if (parentLevel < lv) {
+                            // 上级节点，如果包含目标级别或下一级，则展开
+                            if (hasTargetLevel || hasNextLevel) {
+                                childDiv.classList.remove('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.remove('collapsed');
+                            }
+                        } else if (parentLevel === lv) {
+                            // 当前级别节点，只展开下一级
+                            if (hasNextLevel) {
+                                childDiv.classList.remove('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.remove('collapsed');
+                            } else {
+                                childDiv.classList.add('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.add('collapsed');
+                            }
+                        } else if (parentLevel === lv + 1) {
+                            // 下一级节点，折叠其子节点
+                            childDiv.classList.add('collapsed');
+                            const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                            if (btn) btn.classList.add('collapsed');
+                        } else if (parentLevel > lv + 1) {
+                            // 更深层级，折叠
+                            childDiv.classList.add('collapsed');
+                            const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                            if (btn) btn.classList.add('collapsed');
+                        }
+                    });
+                }
+
+                updateBtnText(lv)();
+            });
+            controls.appendChild(toggleBtn);
+        }
+
+        tocList.appendChild(controls);
+
+        const rootUl = document.createElement('ul');
+        rootUl.className = 'toc-list';
+        renderToc(tocItems, rootUl);
+        tocList.appendChild(rootUl);
+
+        // 点击内容区标题 → 同步目录高亮
+        headings.forEach(h => {
+            h.style.cursor = 'pointer';
+            h.addEventListener('click', () => setActiveLink(h.id));
+        });
+
+        // 滚动高亮：使用 scroll 事件 + requestAnimationFrame，精确找出视口最上方的标题
+        let scrollRaf = null;
+        function handleScroll() {
+            if (scrollRaf) return;
+            scrollRaf = requestAnimationFrame(() => {
+                scrollRaf = null;
+                const scrollTop = fullscreenBody.scrollTop;
+                let topHeading = null;
+                let minTop = Infinity;
+                headings.forEach(h => {
+                    const hTop = h.offsetTop - scrollTop;
+                    // 标题顶部在视口上方不超过 60px 的范围内，就算作可见
+                    if (hTop <= 80 && hTop > -h.offsetHeight) {
+                        if (hTop > minTop) return;
+                        minTop = hTop;
+                        topHeading = h;
+                    }
+                });
+                if (topHeading) setActiveLink(topHeading.id);
+            });
+        }
+        fullscreenBody.addEventListener('scroll', handleScroll);
+    }
+
+    // 核心转换函数: 将 markdown 文本 -> html (安全渲染，并更新预览区和源码区)
+    async function renderMarkdownToHtml(markdownText) {
+        if (!markdownText || markdownText.trim() === '') {
+            previewDiv.innerHTML = '<div style="color: #94a3b8; text-align: center; padding: 2rem;">📭 暂无内容，请在左侧输入 Markdown 并点击转换</div>';
+            htmlSourcePre.textContent = '<!-- 没有内容可转换 -->';
+            return;
+        }
+        try {
+            let rawHtml = await marked.parse(markdownText);
+            let cleanHtml = DOMPurify.sanitize(rawHtml, {
+                ALLOWED_TAGS: [
+                    'h1','h2','h3','h4','h5','h6','p','br','hr','blockquote','pre','code','em','strong','b','i','u',
+                    'ul','ol','li','a','img','table','thead','tbody','tr','th','td','span','div','section','input',
+                    'del','ins','sup','sub','dl','dt','dd','figure','figcaption','mark',
+                ],
+                ALLOWED_ATTR: ['href','src','alt','title','class','id','target','rel','checked','type','disabled','width','height']
+            });
+            const taskListRegex = /<li>(?:<p>)?\s*\[\s*\]\s*(.*?)(?:<\/p>)?<\/li>/gi;
+            const taskCheckedRegex = /<li>(?:<p>)?\s*\[x\]\s*(.*?)(?:<\/p>)?<\/li>/gi;
+            let enhancedHtml = cleanHtml.replace(taskListRegex, (match, content) => {
+                return `<li class="task-list-item" style="list-style: none;"><input type="checkbox" disabled> ${content}</li>`;
+            }).replace(taskCheckedRegex, (match, content) => {
+                return `<li class="task-list-item" style="list-style: none;"><input type="checkbox" disabled checked> ${content}</li>`;
+            });
+            if (enhancedHtml.includes('task-list-item')) {
+                const styleInject = `<style>.task-list-item { list-style-type: none; margin-left: -1rem; } .task-list-item input { margin-right: 0.5rem; }</style>`;
+                enhancedHtml = enhancedHtml + styleInject;
+            }
+            previewDiv.innerHTML = enhancedHtml;
+            htmlSourcePre.textContent = enhancedHtml;
+            if (typeof hljs !== 'undefined') {
+                document.querySelectorAll('#previewContainer pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            }
+        } catch (error) {
+            console.error(error);
+            previewDiv.innerHTML = `<div style="color: #dc2626; background:#fee2e2; padding:1rem; border-radius:12px;">⚠️ 解析错误: ${error.message}</div>`;
+            htmlSourcePre.textContent = `解析异常: ${error.message}`;
+        }
+    }
+
+    function onConvert() {
+        const mdContent = markdownTextarea.value;
+        renderMarkdownToHtml(mdContent);
+    }
+
+    function onClear() {
+        markdownTextarea.value = '';
+        renderMarkdownToHtml('');
+        fileStatusSpan.textContent = '';
+        if (fileUploadInput) fileUploadInput.value = '';
+    }
+
+    function loadSample() {
+        const sampleMarkdown = `# ✨ Markdown 示例文档
+
+欢迎使用本工具！你可以直接**编辑**左侧内容，然后点击「转换预览」获得右侧HTML渲染。
+
+## 📌 基础样式
+
+- **粗体文本** 和 *斜体文本* 以及 ~~删除线~~
+- 行内代码: \`const magic = "markdown -> html"\`
+- 超链接: [访问 GitHub](https://github.com)
+
+## 🧩 代码块高亮 (JavaScript)
+
+\`\`\`javascript
+function greet(name) {
+    console.log(\`Hello, \${name}!\`);
+}
+greet("Markdown 爱好者");
+\`\`\`
+
+## 🧪 表格展示
+
+| 功能        | 支持程度 | 说明             |
+|------------|---------|----------------|
+| 表格       | ✅ 完美  | GFM 表格对齐    |
+| 代码高亮   | ✅ 完美  | 使用 highlight.js |
+| 任务列表   | ✅ 增强  | - [x] 示例      |
+
+## 📝 任务清单 (增强显示)
+
+- [x] 完成基本转换逻辑
+- [ ] 添加文件上传功能
+- [ ] 支持导出独立 HTML
+
+### 更深层级标题 (三级标题示例)
+这里演示三级标题会被目录收录。
+
+> 引用块：简洁且优雅，所见即所得。
+
+---
+
+### 图片占位
+
+![风景](https://picsum.photos/id/20/600/200 "随机山川")
+
+> 最后，试试**上传 .md 文件**或直接粘贴任意 Markdown 内容，点击转换立即生成干净 HTML！ `;
+        markdownTextarea.value = sampleMarkdown;
+        renderMarkdownToHtml(sampleMarkdown);
+        fileStatusSpan.textContent = '已加载示例文档';
+        setTimeout(() => { if(fileStatusSpan) fileStatusSpan.textContent = ''; }, 2000);
+    }
+
+    function uploadMarkdownFile(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const content = e.target.result;
+            markdownTextarea.value = content;
+            renderMarkdownToHtml(content);
+            fileStatusSpan.textContent = `✓ 已加载: ${file.name}`;
+            setTimeout(() => { if(fileStatusSpan) fileStatusSpan.textContent = ''; }, 2500);
+        };
+        reader.onerror = function() {
+            alert('文件读取失败，请重试');
+        };
+        reader.readAsText(file, 'UTF-8');
+    }
+
+    function copyHtmlToClipboard() {
+        const htmlCode = htmlSourcePre.textContent;
+        if (!htmlCode || htmlCode === '<!-- 没有内容可转换 -->' || htmlCode.includes('等待转换')) {
+            alert('暂无可复制的HTML代码，请先转换markdown内容');
+            return;
+        }
+        navigator.clipboard.writeText(htmlCode).then(() => {
+            const originalText = copyHtmlBtn.textContent;
+            copyHtmlBtn.textContent = '✅ 已复制!';
+            setTimeout(() => { copyHtmlBtn.textContent = originalText; }, 1500);
+        }).catch(() => {
+            alert('复制失败，可手动选中代码复制');
+        });
+    }
+
+    // ========== 修改后的导出逻辑：基于当前Markdown源重新生成HTML，与全屏预览保持一致 ==========
+    async function exportAsHtmlFile() {
+        const sourceMarkdown = markdownTextarea.value;
+        if (!sourceMarkdown || sourceMarkdown.trim() === '') {
+            alert('请先在左侧编写Markdown内容后再导出');
+            return;
+        }
+
+        // 显示临时状态
+        const originalBtnText = exportHtmlBtn.textContent;
+        exportHtmlBtn.textContent = '⏳ 生成中...';
+        exportHtmlBtn.disabled = true;
+
+        try {
+            // 1. 调用 marked 解析
+            let rawHtml = await marked.parse(sourceMarkdown);
+            // 2. DOMPurify 清理
+            let cleanHtml = DOMPurify.sanitize(rawHtml, {
+                ALLOWED_TAGS: [
+                    'h1','h2','h3','h4','h5','h6','p','br','hr','blockquote','pre','code','em','strong','b','i','u',
+                    'ul','ol','li','a','img','table','thead','tbody','tr','th','td','span','div','section','input',
+                    'del','ins','sup','sub','dl','dt','dd','figure','figcaption','mark',
+                ],
+                ALLOWED_ATTR: ['href','src','alt','title','class','id','target','rel','checked','type','disabled','width','height']
+            });
+            // 3. 任务列表增强（与预览/全屏完全一致）
+            const taskListRegex = /<li>(?:<p>)?\s*\[\s*\]\s*(.*?)(?:<\/p>)?<\/li>/gi;
+            const taskCheckedRegex = /<li>(?:<p>)?\s*\[x\]\s*(.*?)(?:<\/p>)?<\/li>/gi;
+            let enhancedHtml = cleanHtml.replace(taskListRegex, (match, content) => {
+                return `<li class="task-list-item" style="list-style: none;"><input type="checkbox" disabled> ${content}</li>`;
+            }).replace(taskCheckedRegex, (match, content) => {
+                return `<li class="task-list-item" style="list-style: none;"><input type="checkbox" disabled checked> ${content}</li>`;
+            });
+            if (enhancedHtml.includes('task-list-item')) {
+                const styleInject = `<style>.task-list-item { list-style-type: none; margin-left: -1rem; } .task-list-item input { margin-right: 0.5rem; }</style>`;
+                enhancedHtml = enhancedHtml + styleInject;
+            }
+
+            // 4. 构建完整 HTML 文件 (含左侧目录导航，与全屏预览风格完全一致)
+            const exportDoc = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exported Markdown Document</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #f6f8fa;
+            padding: 1.5rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            color: #0f172a;
+        }
+        .page-layout {
+            display: flex;
+            gap: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            align-items: flex-start;
+        }
+        /* 左侧目录导航 */
+        .toc-sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 1.5rem;
+            max-height: calc(100vh - 3rem);
+            overflow-y: auto;
+            background: #f9fafb;
+            border-radius: 20px;
+            padding: 1.2rem 0.8rem;
+            border: 1px solid #eef2f6;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+        .toc-sidebar-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #4b5563;
+            margin-bottom: 1rem;
+            padding-left: 0.8rem;
+        }
+        .toc-list {
+            list-style: none;
+            margin: 0;
+            padding-left: 0;
+        }
+        .toc-list ul {
+            list-style: none;
+            margin-left: 1rem;
+            padding-left: 0;
+        }
+        .toc-list li {
+            margin: 0.4rem 0;
+            line-height: 1.4;
+        }
+        .toc-link {
+            display: block;
+            padding: 0.3rem 0.8rem;
+            font-size: 0.85rem;
+            color: #2c3e50;
+            text-decoration: none;
+            border-radius: 12px;
+            transition: all 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .toc-link:hover {
+            background-color: #eef2ff;
+            color: #1e40af;
+        }
+        .toc-link.level-h1 { font-weight: 700; padding-left: 0.6rem; font-size: 0.9rem; }
+        .toc-link.level-h2 { padding-left: 1.2rem; }
+        .toc-link.level-h3 { padding-left: 1.8rem; font-size: 0.8rem; color: #4b5563; }
+        .toc-link.level-h4 { padding-left: 2.4rem; font-size: 0.75rem; color: #6b7280; }
+        .toc-link.level-h5 { padding-left: 3rem; font-size: 0.7rem; color: #9ca3af; }
+        .toc-link.level-h6 { padding-left: 3.6rem; font-size: 0.7rem; color: #9ca3af; }
+        .toc-link.active {
+            background-color: #e0e7ff;
+            color: #1e3a8a;
+            font-weight: 500;
+            border-left: 3px solid #3b82f6;
+        }
+        /* 折叠按钮 */
+        .toc-item-row {
+            display: flex;
+            align-items: center;
+        }
+        .toc-item-row .toc-link {
+            flex: 1;
+            min-width: 0;
+        }
+        .toc-toggle {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            color: #9ca3af;
+            font-size: 0.65rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: color 0.15s, background 0.15s;
+        }
+        .toc-toggle:hover { color: #3b82f6; background: #eef2ff; }
+        .toc-toggle.collapsed { transform: rotate(-90deg); }
+        .toc-children.collapsed { display: none; }
+        .toc-controls {
+            display: flex;
+            gap: 0.3rem;
+            margin-bottom: 0.8rem;
+            padding-left: 0.4rem;
+        }
+        .toc-ctrl-btn {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 8px;
+            background: #f1f5f9;
+            border: none;
+            color: #475569;
+            cursor: pointer;
+            transition: background 0.15s;
+            font-family: inherit;
+        }
+        .toc-ctrl-btn:hover { background: #e0e7ff; color: #1e40af; }
+        .toc-ctrl-btn.collapsed-active { background: #3b82f6; color: white; }
+        .toc-ctrl-btn.collapsed-active:hover { background: #2563eb; color: white; }
+        /* 右侧内容区 */
+        .content-body {
+            flex: 1;
+            min-width: 0;
+            background: white;
+            padding: 2rem 2.5rem 3rem;
+            border-radius: 20px;
+            border: 1px solid #edf2f7;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .markdown-body { font-size: 0.95rem; }
+        .task-list-item { list-style-type: none; margin-left: -1rem; }
+        .task-list-item input { margin-right: 0.5rem; }
+        footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.75rem;
+            color: #6c7a91;
+        }
+        @media (max-width: 760px) {
+            .page-layout { flex-direction: column; gap: 1rem; }
+            .toc-sidebar { width: 100%; position: relative; top: 0; max-height: 220px; }
+            .content-body { padding: 1.2rem 1rem 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-layout">
+        <!-- 左侧目录导航 -->
+        <nav class="toc-sidebar" id="tocSidebar">
+            <div class="toc-sidebar-title">📑 文档目录</div>
+            <ul class="toc-list" id="exportTocList"><li style="color:#aaa;padding:0.5rem;">加载中...</li></ul>
+        </nav>
+        <!-- 右侧内容区 -->
+        <div class="content-body markdown-body" id="exportContent">
+            ${enhancedHtml}
+        </div>
+    </div>
+    <footer>由 Markdown 转换工具生成 • 包含完整样式</footer>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"><\/script>
+    <script>
+    hljs?.highlightAll?.();
+
+    // 生成合法 CSS ID
+    function generateId(text) {
+        let rawId = text.toLowerCase().replace(/[^\u4e00-\u9fa5a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'heading';
+        if (/^\d/.test(rawId)) rawId = 'heading-' + rawId;
+        return rawId;
+    }
+
+    // 构建目录导航
+    (function buildTOC() {
+        const content = document.getElementById('exportContent');
+        const tocList = document.getElementById('exportTocList');
+        if (!content || !tocList) return;
+
+        const headings = content.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        if (headings.length === 0) {
+            tocList.innerHTML = '<li style="padding:0.5rem;color:#aaa;">无目录结构</li>';
+            return;
+        }
+
+        // 为标题补全 id
+        headings.forEach(h => {
+            if (!h.id) {
+                let base = generateId(h.innerText || h.textContent);
+                let id = base, n = 1;
+                while (document.getElementById(id) && document.getElementById(id) !== h) id = base + '-' + n++;
+                h.id = id;
+            }
+        });
+
+        // 构建树
+        const items = [];
+        const stack = [{ level: 0, children: items }];
+        headings.forEach(h => {
+            const lv = parseInt(h.tagName[1]);
+            if (lv > 6) return;
+            const item = { level: lv, title: h.innerText || h.textContent, id: h.id, children: [] };
+            while (stack.length > 0 && stack[stack.length-1].level >= lv) stack.pop();
+            stack[stack.length-1].children.push(item);
+            stack.push({ level: lv, children: item.children });
+        });
+
+        // 滚动到标题（使用 offsetTop 精确定位，避免跳到下一项）
+        function scrollToHeading(id) {
+            const target = document.getElementById(id);
+            if (!target) return;
+            const top = target.offsetTop - 12;
+            window.scrollTo({ top, behavior: 'smooth' });
+        }
+
+        // 更新高亮
+        function setActiveLink(id) {
+            tocList.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+            const link = tocList.querySelector('.toc-link[data-id="' + id + '"]');
+            if (link) link.classList.add('active');
+        }
+
+        // 渲染（含折叠）
+        function renderList(children, ul) {
+            children.forEach(child => {
+                const li = document.createElement('li');
+
+                const row = document.createElement('div');
+                row.className = 'toc-item-row';
+
+                const a = document.createElement('a');
+                a.href = '#' + child.id;
+                a.className = 'toc-link level-h' + child.level;
+                a.textContent = child.title;
+                a.dataset.id = child.id;
+                a.addEventListener('click', e => {
+                    e.preventDefault();
+                    scrollToHeading(child.id);
+                    setActiveLink(child.id);
+                });
+                row.appendChild(a);
+
+                let childrenDiv = null;
+                if (child.children.length) {
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'toc-toggle';
+                    toggleBtn.title = '折叠/展开';
+                    toggleBtn.textContent = '▼';
+                    row.appendChild(toggleBtn);
+
+                    childrenDiv = document.createElement('div');
+                    childrenDiv.className = 'toc-children';
+                    const sub = document.createElement('ul');
+                    renderList(child.children, sub);
+                    childrenDiv.appendChild(sub);
+
+                    toggleBtn.addEventListener('click', e => {
+                        e.stopPropagation();
+                        const collapsed = childrenDiv.classList.toggle('collapsed');
+                        toggleBtn.classList.toggle('collapsed', collapsed);
+                    });
+                }
+
+                li.appendChild(row);
+                if (childrenDiv) li.appendChild(childrenDiv);
+                ul.appendChild(li);
+            });
+        }
+
+        // 控制栏
+        tocList.innerHTML = '';
+        const controls = document.createElement('div');
+        controls.className = 'toc-controls';
+
+        // 检测最大目录级别（递归遍历整棵树）
+        function getMaxLevel(items) {
+            let max = 0;
+            items.forEach(function(item) {
+                max = Math.max(max, item.level);
+                if (item.children.length) {
+                    max = Math.max(max, getMaxLevel(item.children));
+                }
+            });
+            return max;
+        }
+        const maxLevel = getMaxLevel(items);
+        console.log('[TOC] 检测到 ' + maxLevel + ' 级目录，共 ' + items.length + ' 个顶级节点');
+        const levelNames = ['', '一级', '二级', '三级', '四级', '五级', '六级'];
+
+        // 按级别折叠/展开 切换按钮（从最大级别开始）
+        const levelState = {}; // levelState[lv] = true 表示已折叠
+        const levelBtns = {}; // levelBtns[lv] = button element
+
+        for (let lv = maxLevel; lv >= 1; lv--) {
+            levelState[lv] = false; // 初始都是展开状态
+        }
+
+        // 辅助函数：获取节点的级别
+        function getNodeLevel(node) {
+            const link = node.querySelector('.toc-link');
+            if (!link) return 0;
+            for (let i = 1; i <= 6; i++) {
+                if (link.classList.contains('level-h' + i)) return i;
+            }
+            return 0;
+        }
+
+        for (let lv = maxLevel; lv >= 1; lv--) {
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'toc-ctrl-btn';
+            levelBtns[lv] = toggleBtn;
+            const levelName = levelNames[lv] || lv + '级';
+
+            function updateBtnText(lvParam) {
+                return function() {
+                    if (levelState[lvParam]) {
+                        toggleBtn.textContent = '展开' + levelName;
+                        toggleBtn.classList.remove('collapsed-active');
+                    } else {
+                        toggleBtn.textContent = '折叠' + levelName;
+                        toggleBtn.classList.add('collapsed-active');
+                    }
+                }
+            }
+            updateBtnText(lv)();
+
+            toggleBtn.title = '点击切换' + levelName + '目录的展开/折叠';
+
+            toggleBtn.addEventListener('click', () => {
+                // 辅助函数：递归检查是否包含指定级别的后代节点
+                function hasDescendantLevel(containerDiv, targetLevel) {
+                    const allLinks = containerDiv.querySelectorAll('.toc-link');
+                    for (let i = 0; i < allLinks.length; i++) {
+                        if (allLinks[i].classList.contains('level-h' + targetLevel)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
+                // 重置所有其他按钮状态
+                for (let otherLv in levelBtns) {
+                    if (String(otherLv) !== String(lv)) {
+                        levelState[otherLv] = false;
+                        levelBtns[otherLv].textContent = '折叠' + (levelNames[otherLv] || otherLv + '级');
+                        levelBtns[otherLv].classList.remove('collapsed-active');
+                    }
+                }
+
+                // 切换当前级别状态
+                levelState[lv] = !levelState[lv];
+                const isCollapsing = levelState[lv];
+
+                if (isCollapsing) {
+                    // 折叠模式：折叠当前级别，展开所有上级，折叠所有下级
+                    tocList.querySelectorAll('.toc-children').forEach(childDiv => {
+                        const parentLi = childDiv.parentElement;
+                        if (!parentLi) return;
+
+                        const parentLevel = getNodeLevel(parentLi);
+                        const hasTargetLevel = hasDescendantLevel(childDiv, lv);
+
+                        if (hasTargetLevel) {
+                            // 这个节点包含目标级别的后代节点
+                            if (parentLevel < lv) {
+                                // 父节点级别小于目标级别，展开父节点
+                                childDiv.classList.remove('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.remove('collapsed');
+                            } else if (parentLevel === lv) {
+                                // 父节点就是目标级别，折叠其子节点
+                                childDiv.classList.add('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.add('collapsed');
+                            }
+                        } else if (parentLevel >= lv) {
+                            // 父节点级别大于等于目标级别，折叠
+                            childDiv.classList.add('collapsed');
+                            const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                            if (btn) btn.classList.add('collapsed');
+                        }
+                    });
+                } else {
+                    // 展开模式：展开当前级别、所有上级和下一级，不深度展开
+                    tocList.querySelectorAll('.toc-children').forEach(childDiv => {
+                        const parentLi = childDiv.parentElement;
+                        if (!parentLi) return;
+
+                        const parentLevel = getNodeLevel(parentLi);
+                        const hasTargetLevel = hasDescendantLevel(childDiv, lv);
+                        const hasNextLevel = hasDescendantLevel(childDiv, lv + 1);
+
+                        if (parentLevel < lv) {
+                            // 上级节点，如果包含目标级别或下一级，则展开
+                            if (hasTargetLevel || hasNextLevel) {
+                                childDiv.classList.remove('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.remove('collapsed');
+                            }
+                        } else if (parentLevel === lv) {
+                            // 当前级别节点，只展开下一级
+                            if (hasNextLevel) {
+                                childDiv.classList.remove('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.remove('collapsed');
+                            } else {
+                                childDiv.classList.add('collapsed');
+                                const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                                if (btn) btn.classList.add('collapsed');
+                            }
+                        } else if (parentLevel === lv + 1) {
+                            // 下一级节点，折叠其子节点
+                            childDiv.classList.add('collapsed');
+                            const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                            if (btn) btn.classList.add('collapsed');
+                        } else if (parentLevel > lv + 1) {
+                            // 更深层级，折叠
+                            childDiv.classList.add('collapsed');
+                            const btn = parentLi.querySelector(':scope > .toc-item-row > .toc-toggle');
+                            if (btn) btn.classList.add('collapsed');
+                        }
+                    });
+                }
+
+                updateBtnText(lv)();
+            });
+            controls.appendChild(toggleBtn);
+        }
+
+        tocList.appendChild(controls);
+
+        const root = document.createElement('ul');
+        root.className = 'toc-list';
+        renderList(items, root);
+        tocList.appendChild(root);
+
+        // 点击内容区标题 → 同步目录高亮
+        headings.forEach(h => {
+            h.style.cursor = 'pointer';
+            h.addEventListener('click', () => setActiveLink(h.id));
+        });
+
+        // 滚动高亮：使用 scroll 事件 + requestAnimationFrame，精确找出视口最上方的标题
+        let scrollRaf = null;
+        function handleScroll() {
+            if (scrollRaf) return;
+            scrollRaf = requestAnimationFrame(() => {
+                scrollRaf = null;
+                const scrollTop = window.scrollY;
+                let topHeading = null;
+                let minTop = Infinity;
+                headings.forEach(h => {
+                    const hTop = h.offsetTop - scrollTop;
+                    if (hTop <= 80 && hTop > -h.offsetHeight) {
+                        if (hTop > minTop) return;
+                        minTop = hTop;
+                        topHeading = h;
+                    }
+                });
+                if (topHeading) setActiveLink(topHeading.id);
+            });
+        }
+        window.addEventListener('scroll', handleScroll);
+    })();
+    <\/script>
+</body>
+</html>`;
+
+            // 5. 下载文件
+            const blob = new Blob([exportDoc], { type: 'text/html' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.href = url;
+            link.download = `markdown_export_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.html`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error(err);
+            alert('导出失败：' + err.message);
+        } finally {
+            exportHtmlBtn.textContent = originalBtnText;
+            exportHtmlBtn.disabled = false;
+        }
+    }
+
+    // 全屏预览（带目录构建）
+    function openFullscreenPreview() {
+        const currentPreviewHtml = previewDiv.innerHTML;
+        if (!currentPreviewHtml || currentPreviewHtml.includes('暂无内容') || currentPreviewHtml.includes('等待转换')) {
+            alert('当前没有可预览的HTML内容，请先转换有效的Markdown文档');
+            return;
+        }
+        fullscreenBody.innerHTML = currentPreviewHtml;
+        // 高亮代码块
+        if (typeof hljs !== 'undefined') {
+            fullscreenBody.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        }
+        // 构建目录树（基于fullscreenBody的内容）现在内部已完全修复 ID 选择器问题
+        buildTOCFromContent(fullscreenBody);
+        fullscreenModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeFullscreenPreview() {
+        fullscreenModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // 事件绑定
+    fullscreenBtn.addEventListener('click', openFullscreenPreview);
+    closeFullscreenBtn.addEventListener('click', closeFullscreenPreview);
+    fullscreenModal.addEventListener('click', (e) => {
+        if (e.target === fullscreenModal) closeFullscreenPreview();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && fullscreenModal.classList.contains('active')) closeFullscreenPreview();
+    });
+
+    uploadBtn.addEventListener('click', () => fileUploadInput.click());
+    fileUploadInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            uploadMarkdownFile(e.target.files[0]);
+        }
+        fileUploadInput.value = '';
+    });
+    convertBtn.addEventListener('click', onConvert);
+    clearBtn.addEventListener('click', onClear);
+    sampleBtn.addEventListener('click', loadSample);
+    copyHtmlBtn.addEventListener('click', copyHtmlToClipboard);
+    exportHtmlBtn.addEventListener('click', exportAsHtmlFile);
+    
+    const textareaElem = markdownTextarea;
+    textareaElem.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        textareaElem.style.border = '2px dashed #3b82f6';
+    });
+    textareaElem.addEventListener('dragleave', () => { textareaElem.style.border = 'none'; });
+    textareaElem.addEventListener('drop', (e) => {
+        e.preventDefault();
+        textareaElem.style.border = 'none';
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (file.name.endsWith('.md') || file.name.endsWith('.markdown') || file.name.endsWith('.txt') || file.type === 'text/plain') {
+                uploadMarkdownFile(file);
+            } else {
+                alert('请拖拽 Markdown(.md) 或纯文本文件');
+            }
+        }
+    });
+
+    markdownTextarea.value = '# 欢迎使用 Markdown 转换器 🎉\n\n直接编辑左侧内容，点击 **转换预览** 或上传 .md 文件。\n\n- 支持表格、代码高亮\n- 右侧即时查看HTML渲染及源代码';
+    renderMarkdownToHtml(markdownTextarea.value);
+</script>
+</body>
+</html>
